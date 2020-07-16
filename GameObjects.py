@@ -26,7 +26,7 @@ class Enemy:
     """represents the target of the bow and arrow, x and y funct represent function describing movement of enemy
     with respect to time."""
 
-    def __init__(self, surface, hp=100, pos=(0, 0), x_funct=defaultx, y_funct=defaulty):
+    def __init__(self, surface, hp=100, pos=(0, 0)):
         self.pos = list(pos)
         self.vel = [0, 0]
         self.hp = hp
@@ -38,32 +38,7 @@ class Enemy:
         self.quadborder = self.quads[:]
         self.quadstat = [False for i in range(0, 4)]
         self.surface = surface
-        self.accel = 0.005
-        self.fx = x_funct
-        self.fy = y_funct
-
-    def move(self, time):
-        """Moves enemy, m_funct represents a function for how the x movement of enemy changes over time, must
-        be in the range of (0,1), and updates drawing"""
-
-        old = self.pos[:]
-        self.pos[0] += self.fx(time)
-        self.pos[1] += self.fy(time)
-        dx = self.pos[0] - old[0]
-        dy = self.pos[1] - old[1]
-
-        if dx <= 0:
-            dx = self.pos[0] - np.ceil(old[0])
-        else:
-            dx = self.pos[0] - np.floor(old[0])
-
-        if dy <= 0:
-            dy = self.pos[1] - np.ceil(old[1])
-        else:
-            dy = self.pos[1] - np.floor(old[1])
-
-        self.vel = [dx, dy]
-        self.model.move_ip(dx, dy)
+        self.accel = 0.02
 
     def player_control(self):
         """control enemy with arrow buttons"""
@@ -116,12 +91,12 @@ class Enemy:
 
             self.vel[0] = 0
 
-        if int(self.pos[1]) not in range(1, 599):
+        if int(self.pos[1]) not in range(1, 499):
             dy = 0
             if self.pos[1] < 1:
                 self.pos[1] = 2
             else:
-                self.pos[1] = 598
+                self.pos[1] = 498
             self.vel[1] = 0
 
         # TODO reimplement quadrant moving
@@ -155,8 +130,9 @@ class Enemy:
             pygame.draw.rect(self.surface, c, self.quads[i])
             pygame.draw.rect(self.surface, (0, 0, 0), self.quads[i], 1)
 
-        # draw main enemy body (black square)
+        # draw main enemy body (black square), and dy/dx
         pygame.draw.rect(self.surface, (0, 0, 0), self.model)
+        pygame.draw.aaline(self.surface, (0, 26, 255), self.pos, (self.pos[0] + 120*self.vel[0], self.pos[1] + 120*self.vel[1]))
 
 
 
@@ -168,8 +144,13 @@ class Bow:
         self.model = [pygame.image.load('sprites/bow.png')]
         self.surface = surface
         self.drawpos = [247, 573]
+        self.draw_dx = 0
+        self.draw_dy = 0
 
     def pull_bow(self, mouse=True, neuron_pos=(247, 573)):
+        mousepos = pygame.mouse.get_pos()
+        if not (pygame.mouse.get_pressed()[0] and int(mousepos[0]) in range(0, 500) and int(mousepos[1]) in range(500, 700)):
+            return None
 
         if mouse:
             mp = pygame.mouse.get_pos()
@@ -194,16 +175,19 @@ class Bow:
 
         # pulling bow towards mouse
         if dx == 0:
-            self.drawpos[1] += 0.7*np.sign(dy)
+            self.drawpos[1] += 1.5*np.sign(dy)
 
         else:
             theta = np.arctan(abs(dy/dx))
-            self.drawpos[0] += 0.7 * np.cos(theta)*np.sign(dx)
-            self.drawpos[1] += 0.7 * np.sin(theta)*np.sign(dy)
+            self.drawpos[0] += 2 * np.cos(theta)*np.sign(dx)
+            self.drawpos[1] += 2 * np.sin(theta)*np.sign(dy)
 
         # drawing lines and ball corresponding to the bow's draw position
         drawdx = 247 + (247-self.drawpos[0])
         drawdy = 573 + (573-self.drawpos[1])
+
+        self.draw_dx = 247-self.drawpos[0]
+        self.draw_dy = 573-self.drawpos[1]
 
         pygame.draw.aaline(self.surface, (0, 0, 0), (193, 573), self.drawpos)
         pygame.draw.aaline(self.surface, (0, 0, 0), (303, 573), self.drawpos)
@@ -218,6 +202,7 @@ class Bow:
         shot = Arrow(dx, dy, end_pos, self.surface)
         self.arrows += 1
         self.drawpos = [247, 573]
+        self.draw_dy, self.draw_dx = 0, 0
         return shot
 
     def draw(self):
@@ -266,18 +251,20 @@ class WaveManager:
 
     def detectCollisions(self):
         """detects if arrows hit any enemies, and despawns arrows out of bounds, updates arrows and enemies"""
-
         for arr in self.arrows:
             for e in self.enemies:
                 if int(arr.pos[0]) in range(int(e.pos[0] - 15), int(e.pos[0] + 15)) and int(arr.pos[1]) in range(int(e.pos[1] - 15), int(e.pos[1] + 15)):
                     self.arrows.remove(arr)
                     self.enemies.remove(e)
 
+            # despawn offscreen arrows
+            if not (int(arr.pos[0]) in range(-100, 560) and int(arr.pos[1]) in range(-100, 800)):
+                self.arrows.remove(arr)
+
         for e in self.enemies:
             e.check_quads([a.pos for a in self.arrows])
         # update the survivors/arrow positions
         [a.move() for a in self.arrows]
-        [e.player_control() for e in self.enemies]
 
     def draw(self):
         [e.draw() for e in self.enemies]
