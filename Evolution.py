@@ -18,13 +18,13 @@ class _Creature:
 
 class BowCreature(_Creature):
     def getfitness(self):
-        """f(t, kills, arrows left)"""
+        """f(time(exponential decay), kills(linear), arrows left(exp))"""
 
 
 class SquareCreature(_Creature):
     def getfitness(self):
         """f(t), Increases most initially, plateaus later"""
-        return np.sqrt(self.time)
+        return 8*np.sqrt(self.time)
 
 
 class EvolutionManager:
