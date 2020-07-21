@@ -38,29 +38,46 @@ class Enemy:
         self.quadborder = self.quads[:]
         self.quadstat = [False for i in range(0, 4)]
         self.surface = surface
-        self.accel = 0.02
+        self.accel = 0.05
 
-    def player_control(self):
+    def copy_enemy(self):
+        new_e = Enemy(self.surface, self.hp, self.pos[:])
+        new_e.vel = self.vel[:]
+        new_e.model = pygame.Rect(self.pos[0] - 7, self.pos[1] - 7, 15, 15)
+        new_e.quads = [pygame.Rect(self.pos[0] - 50, self.pos[1] - 50, 50, 50),
+                      pygame.Rect(self.pos[0] - 50, self.pos[1] - 1, 50, 50),
+                      pygame.Rect(self.pos[0] - 1, self.pos[1] - 50, 50, 50),
+                      pygame.Rect(self.pos[0] - 1, self.pos[1] - 1, 50, 50)]
+        new_e.quadborder = self.quads[:]
+        new_e.quadstat = self.quadstat[:]
+
+    def player_control(self, mouse=True, inp=(0, 0, 0, 0)):
         """control enemy with arrow buttons"""
-        keys = pygame.key.get_pressed()
+
+        if mouse:
+            allkeys = pygame.key.get_pressed()
+            keys = [allkeys[275], allkeys[276], allkeys[274], allkeys[273]]
+
+        else:
+            keys = list(inp)
 
         # check if accelerating in x and y
-        ax = (keys[275] - keys[276])
-        ay = (keys[274] - keys[273])
+        ax = (keys[0] - keys[1])
+        ay = (keys[2] - keys[3])
 
         # stop accelerating when at max velocity while pressing buttons
-        if abs(self.vel[0]) > 0.9 and abs(ax) > 0 and np.sign(ax) == np.sign(self.vel[0]):
+        if abs(self.vel[0]) > 1.5 and abs(ax) > 0 and np.sign(ax) == np.sign(self.vel[0]):
             ax = 0
-        if abs(self.vel[1]) > 0.9 and abs(ay) > 0 and np.sign(ay) == np.sign(self.vel[1]):
+        if abs(self.vel[1]) > 1.5 and abs(ay) > 0 and np.sign(ay) == np.sign(self.vel[1]):
             ay = 0
 
         dx = self.vel[0] + self.accel*ax
         dy = self.vel[1] + self.accel*ay
 
         # decelerate when keys are let go and object is moving
-        if keys[275] < 1 and keys[276] < 1 and abs(self.vel[0]) > 0:
+        if keys[0] < 1 and keys[1] < 1 and abs(self.vel[0]) > 0:
             dx = dx - np.sign(dx)*self.accel
-        if keys[274] < 1 and keys[273] < 1 and abs(self.vel[1]) > 0:
+        if keys[2] < 1 and keys[3] < 1 and abs(self.vel[1]) > 0:
             dy = dy - np.sign(dy)*self.accel
 
         self.vel = [dx, dy]
@@ -134,6 +151,9 @@ class Enemy:
         pygame.draw.rect(self.surface, (0, 0, 0), self.model)
         pygame.draw.aaline(self.surface, (0, 26, 255), self.pos, (self.pos[0] + 120*self.vel[0], self.pos[1] + 120*self.vel[1]))
 
+    def is_moving(self):
+        """returns if enemy is moving"""
+        return not (int(abs(self.vel[0]*10)) in range(0, 3) and int(abs(self.vel[1]*10)) in range(0, 3))
 
 
 class Bow:
@@ -141,15 +161,27 @@ class Bow:
     def __init__(self, surface, arrow_count=0):
         self.arrows = arrow_count
         self.draw_len = 0
-        self.model = [pygame.image.load('sprites/bow.png')]
+        self.model = [pygame.image.load('sprites/bow.png').convert_alpha()]
         self.surface = surface
         self.drawpos = [247, 573]
         self.draw_dx = 0
         self.draw_dy = 0
 
+        self.time_between_shots = 0
+
+    def copy_bow(self):
+        new_bow = Bow(self.surface, self.arrows)
+        new_bow.draw_len = self.draw_len
+        new_bow.drawpos = self.drawpos[:]
+        new_bow.draw_dx = self.draw_dx
+        new_bow.draw_dy = self.draw_dy
+        new_bow.time_between_shots = self.time_between_shots
+
+        return new_bow
+
     def pull_bow(self, mouse=True, neuron_pos=(247, 573)):
         mousepos = pygame.mouse.get_pos()
-        if not (pygame.mouse.get_pressed()[0] and int(mousepos[0]) in range(0, 500) and int(mousepos[1]) in range(500, 700)):
+        if mouse and not (pygame.mouse.get_pressed()[0] and int(mousepos[0]) in range(0, 500) and int(mousepos[1]) in range(500, 700)):
             return None
 
         if mouse:
@@ -167,34 +199,25 @@ class Bow:
             dy = (self.drawpos[1]-np.sign(mp[1])*mp[1])*-1
 
         # checking if ball pos is at mouse pos
-        if int(self.drawpos[0]) in range(mp[0] - 2, mp[0] + 3) and int(self.drawpos[1]) in range(mp[1] - 2, mp[1] + 3):
-            self.drawpos[0] = mp[0]
-            self.drawpos[1] = mp[1]
+        if int(self.drawpos[0]) in range(int(mp[0]) - 2, int(mp[0]) + 3) and int(self.drawpos[1]) in range(int(mp[1]) - 2, int(mp[1]) + 3):
+            self.drawpos[0] = int(mp[0])
+            self.drawpos[1] = int(mp[1])
             dx = 0
             dy = 0
 
         # pulling bow towards mouse
         if dx == 0:
-            self.drawpos[1] += 1.5*np.sign(dy)
+            self.drawpos[1] += 5*np.sign(dy)
 
         else:
             theta = np.arctan(abs(dy/dx))
-            self.drawpos[0] += 2 * np.cos(theta)*np.sign(dx)
-            self.drawpos[1] += 2 * np.sin(theta)*np.sign(dy)
+            self.drawpos[0] += 5 * np.cos(theta)*np.sign(dx)
+            self.drawpos[1] += 5 * np.sin(theta)*np.sign(dy)
 
-        # drawing lines and ball corresponding to the bow's draw position
-        drawdx = 247 + (247-self.drawpos[0])
-        drawdy = 573 + (573-self.drawpos[1])
-
+        # updating draw position of bow
         self.draw_dx = 247-self.drawpos[0]
         self.draw_dy = 573-self.drawpos[1]
 
-        pygame.draw.aaline(self.surface, (0, 0, 0), (193, 573), self.drawpos)
-        pygame.draw.aaline(self.surface, (0, 0, 0), (303, 573), self.drawpos)
-        pygame.draw.aaline(self.surface, (235, 64, 52), self.drawpos, (drawdx, drawdy))
-
-        ball = pygame.Rect(self.drawpos[0] - 6, self.drawpos[1] - 10, 16, 16)
-        pygame.draw.ellipse(self.surface, (27, 163, 3), ball)
 
     def shoot(self, end_pos, dx, dy):
         """drawing arrow longer = take more time, faster arrow, slower fire rate, more distance and dmg
@@ -203,11 +226,23 @@ class Bow:
         self.arrows += 1
         self.drawpos = [247, 573]
         self.draw_dy, self.draw_dx = 0, 0
+        self.time_between_shots = 0
         return shot
 
     def draw(self):
         """updates the bow model"""
         self.surface.blit(self.model[0], (190, 550))
+
+        drawdx = 247 + (247-self.drawpos[0])
+        drawdy = 573 + (573-self.drawpos[1])
+
+        pygame.draw.aaline(self.surface, (0, 0, 0), (193, 573), self.drawpos)
+        pygame.draw.aaline(self.surface, (0, 0, 0), (303, 573), self.drawpos)
+        pygame.draw.aaline(self.surface, (235, 64, 52), self.drawpos, (drawdx, drawdy))
+
+        ball = pygame.Rect(self.drawpos[0] - 6, self.drawpos[1] - 10, 16, 16)
+        pygame.draw.ellipse(self.surface, (27, 163, 3), ball)
+        self.time_between_shots += 1
 
 
 class Arrow:
@@ -244,19 +279,38 @@ class Arrow:
 class WaveManager:
     """Represents a wave of enemies"""
 
-    def __init__(self, enemies):
+    def __init__(self, enemies, bow):
         self.enemies = enemies
         self.arrows = []
-        self.bow = Bow(int(len(enemies)*1.5 // 1))
+        self.bow = bow
+        self.failed_shots = 0
+        self.closest_distance = [99999999999999999, 99999999999999999]
 
     def detectCollisions(self):
         """detects if arrows hit any enemies, and despawns arrows out of bounds, updates arrows and enemies"""
+
+        # removes newest arrow if too many onscreen, +1 failed shot
+        if len(self.arrows) > 24:
+            self.arrows.pop(-1)
+            self.bow.arrows -= 1
+            self.failed_shots += 1
+
+        # checking for collisions
         for arr in self.arrows:
             for e in self.enemies:
+                # remove arrow if found in range of enemy, i.e enemy killed
                 if int(arr.pos[0]) in range(int(e.pos[0] - 15), int(e.pos[0] + 15)) and int(arr.pos[1]) in range(int(e.pos[1] - 15), int(e.pos[1] + 15)):
                     self.arrows.remove(arr)
                     self.enemies.remove(e)
 
+                # calculate distance between arrow and enemy, update closest distance if smaller
+                else:
+                    dx = e.pos[0] - arr.pos[0]
+                    dy = e.pos[1] - arr.pos[1]
+
+                    if abs(dx) < self.closest_distance[0] and abs(dy) < self.closest_distance[1]:
+                        self.closest_distance = [abs(dx), abs(dy)]
+                        print(self.closest_distance)
             # despawn offscreen arrows
             if not (int(arr.pos[0]) in range(-100, 560) and int(arr.pos[1]) in range(-100, 800)):
                 self.arrows.remove(arr)
@@ -267,6 +321,7 @@ class WaveManager:
         [a.move() for a in self.arrows]
 
     def draw(self):
+        self.bow.draw()
         [e.draw() for e in self.enemies]
         [a.draw() for a in self.arrows]
 

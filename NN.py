@@ -49,7 +49,7 @@ class NN:
         for i in range(1, len(self.activations)):
             mat = []
             for r in range(0, len(self.activations[i])):
-                row = np.array([2*(np.random.random_sample()*2 - 1) for i in range(0, len(self.activations[i-1]))])
+                row = np.array([8*(np.random.random_sample()*2 - 1) for i in range(0, len(self.activations[i-1]))])
                 mat.append(row)
             self.weights.append(np.array(mat))
 
@@ -97,6 +97,16 @@ class NN:
         self.__init__(eval(lines[1]))
         self.biases = eval(lines[3])
         self.weights = eval(lines[5])
+
+    def copy_NN(self):
+        """returns a new NN instance with the same parameters as the current one"""
+        newNN = NN([3, 3, 3])
+        newNN.biases = self.biases[:]
+        newNN.weights = self.weights[:]
+        newNN.activations = self.activations[:]
+        newNN.sum_arr = self.sum_arr[:]
+
+        return newNN
 
     def save(self, fname="NN_save.txt"):
         """saves weights and biases to a text file.
@@ -149,6 +159,4 @@ def sigmoid(x):
 def sigmoid_prime(x):
     """derivative of the sigmoid function with respect to its input"""
     return sigmoid(x) * (1 - sigmoid(x))
-
-
 
