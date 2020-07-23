@@ -2,10 +2,20 @@ import pygame
 import GameObjects
 import Evolution
 import sys
+import os
+import neat
+
+
+ENEMY_PATH = os.path.join("enemy-config-feedforward.txt")
+BOW_PATH = os.path.join("bow-config-feedforward.txt")
+e_conf = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation, ENEMY_PATH)
+b_conf = neat.config.Config(neat.DefaultGenome, neat.DefaultReproduction, neat.DefaultSpeciesSet, neat.DefaultStagnation, BOW_PATH)
+
 
 # game setup
 pygame.init()
 pygame.font.init()
+clock = pygame.time.Clock()
 screen = pygame.display.set_mode((1400, 700))
 header = pygame.font.SysFont('Times New Roman', 25)
 
@@ -15,10 +25,9 @@ manager = GameObjects.WaveManager([e], bow)
 
 enemy = Evolution.SquareCreature(screen, e)
 bow_ai = Evolution.BowCreature(screen, bow)
+e_manager = Evolution.EvolutionManager(screen, b_conf, e_conf)
 
-e_manager = Evolution.EvolutionManager(screen)
-
-clock = pygame.time.Clock()
+view_fit = False
 # game loop
 while True:
     screen.fill((255, 255, 255))
@@ -29,10 +38,7 @@ while True:
             sys.exit()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
-            e_manager.drawing = True
-
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            e_manager.drawing = False
+            view_fit = not view_fit
 
     # ========= updating screen==============
     # draw dividers, and generation info
@@ -44,7 +50,10 @@ while True:
     enemy_label = header.render('Enemy', False, (0, 0, 0))
     bow_label = header.render('Slingshot', False, (0, 0, 0))
 
-    e_manager.cycle()
+    if not view_fit:
+        e_manager.multicycle()
+    else:
+        e_manager.view_most_fit()
 
     screen.blit(enemy_label, (670, 20))
     screen.blit(bow_label, (670, 390))
