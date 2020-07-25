@@ -26,8 +26,11 @@ class Enemy:
     """represents the target of the bow and arrow, x and y funct represent function describing movement of enemy
     with respect to time."""
 
-    def __init__(self, surface, hp=100, pos=(0, 0)):
-        self.pos = list(pos)
+    def __init__(self, surface, hp=100):
+        xrand = np.random.random_sample()*300 + 100
+        yrand = np.random.random_sample()*300 + 100
+
+        self.pos = [xrand, yrand]
         self.vel = [0, 0]
         self.hp = hp
         self.model = pygame.Rect(self.pos[0] - 7, self.pos[1] - 7, 15, 15)
@@ -222,8 +225,7 @@ class Bow:
     def shoot(self, end_pos, dx, dy):
         """drawing arrow longer = take more time, faster arrow, slower fire rate, more distance and dmg
             shorter = less time, slower arrow & faster fire rate, less distance and dmg. Returns the arrow shot"""
-        dx += np.random.random_sample()*2-1
-        dy += np.random.random_sample()
+        dx += (np.random.random_sample()*2-1)/3
 
         shot = Arrow(dx, dy, end_pos, self.surface)
         self.arrows += 1
@@ -234,7 +236,6 @@ class Bow:
 
     def draw(self):
         """updates the bow model"""
-        self.surface.blit(self.model[0], (190, 550))
 
         drawdx = 247 + (247-self.drawpos[0])
         drawdy = 573 + (573-self.drawpos[1])
