@@ -26,8 +26,11 @@ class Enemy:
     """represents the target of the bow and arrow, x and y funct represent function describing movement of enemy
     with respect to time."""
 
-    def __init__(self, surface, hp=100, pos=(0, 0)):
-        self.pos = list(pos)
+    def __init__(self, surface, hp=100):
+        xrand = np.random.random_sample()*300 + 100
+        yrand = np.random.random_sample()*300 + 100
+
+        self.pos = [xrand, yrand]
         self.vel = [0, 0]
         self.hp = hp
         self.model = pygame.Rect(self.pos[0] - 7, self.pos[1] - 7, 15, 15)
@@ -38,7 +41,7 @@ class Enemy:
         self.quadborder = self.quads[:]
         self.quadstat = [False for i in range(0, 4)]
         self.surface = surface
-        self.accel = 0.05
+        self.accel = 0.02
 
     def copy_enemy(self):
         new_e = Enemy(self.surface, self.hp, self.pos[:])
@@ -207,12 +210,12 @@ class Bow:
 
         # pulling bow towards mouse
         if dx == 0:
-            self.drawpos[1] += 5*np.sign(dy)
+            self.drawpos[1] += 1.5*np.sign(dy)
 
         else:
             theta = np.arctan(abs(dy/dx))
-            self.drawpos[0] += 5 * np.cos(theta)*np.sign(dx)
-            self.drawpos[1] += 5 * np.sin(theta)*np.sign(dy)
+            self.drawpos[0] += 1.5 * np.cos(theta)*np.sign(dx)
+            self.drawpos[1] += 1.5 * np.sin(theta)*np.sign(dy)
 
         # updating draw position of bow
         self.draw_dx = 247-self.drawpos[0]
@@ -222,6 +225,8 @@ class Bow:
     def shoot(self, end_pos, dx, dy):
         """drawing arrow longer = take more time, faster arrow, slower fire rate, more distance and dmg
             shorter = less time, slower arrow & faster fire rate, less distance and dmg. Returns the arrow shot"""
+        dx += (np.random.random_sample()*2-1)/3
+
         shot = Arrow(dx, dy, end_pos, self.surface)
         self.arrows += 1
         self.drawpos = [247, 573]
@@ -231,7 +236,6 @@ class Bow:
 
     def draw(self):
         """updates the bow model"""
-        self.surface.blit(self.model[0], (190, 550))
 
         drawdx = 247 + (247-self.drawpos[0])
         drawdy = 573 + (573-self.drawpos[1])
@@ -284,7 +288,10 @@ class WaveManager:
         self.arrows = []
         self.bow = bow
         self.failed_shots = 0
-        self.closest_distance = [99999999999999999, 99999999999999999]
+        self.ticks = 1
+        self.tot_dist = 0
+        self.avg_dist = -1
+        self.missed = 0
 
     def detectCollisions(self):
         """detects if arrows hit any enemies, and despawns arrows out of bounds, updates arrows and enemies"""
@@ -296,35 +303,40 @@ class WaveManager:
             self.failed_shots += 1
 
         # checking for collisions
+        dist_sum = 0
         for arr in self.arrows:
+            self.ticks += 1
             for e in self.enemies:
                 # remove arrow if found in range of enemy, i.e enemy killed
                 if int(arr.pos[0]) in range(int(e.pos[0] - 15), int(e.pos[0] + 15)) and int(arr.pos[1]) in range(int(e.pos[1] - 15), int(e.pos[1] + 15)):
                     self.arrows.remove(arr)
                     self.enemies.remove(e)
 
-                # calculate distance between arrow and enemy, update closest distance if smaller
-                else:
-                    dx = e.pos[0] - arr.pos[0]
-                    dy = e.pos[1] - arr.pos[1]
+                # calculate distance between arrow and enemy, update average distance for this tick
+                dx = e.pos[0] - arr.pos[0]
+                dy = e.pos[1] - arr.pos[1]
+                dist_sum += np.sqrt(np.square(dx) + np.square(dy))
 
-                    if abs(dx) < self.closest_distance[0] and abs(dy) < self.closest_distance[1]:
-                        self.closest_distance = [abs(dx), abs(dy)]
-                        print(self.closest_distance)
             # despawn offscreen arrows
             if not (int(arr.pos[0]) in range(-100, 560) and int(arr.pos[1]) in range(-100, 800)):
                 self.arrows.remove(arr)
+                self.missed += 1
 
+        # updating enemy and arrow states
         for e in self.enemies:
             e.check_quads([a.pos for a in self.arrows])
-        # update the survivors/arrow positions
+
+        self.tot_dist += dist_sum / (len(self.arrows) + 1)
+        self.avg_dist = self.tot_dist / self.ticks
         [a.move() for a in self.arrows]
+
+
+
 
     def draw(self):
         self.bow.draw()
         [e.draw() for e in self.enemies]
         [a.draw() for a in self.arrows]
-
 
     def add_enemy(self, enemy):
         """adds an enemy to the enemies list"""

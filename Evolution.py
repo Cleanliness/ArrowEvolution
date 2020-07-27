@@ -1,132 +1,27 @@
 import numpy as np
 import pygame
 import GameObjects
-import NN
+import neat
+import random
 
+pygame.font.init()
 
-def arr_fitness(disp, time):
-    dist = np.sqrt(np.square(disp[0]) + np.square(disp[1]))
-
-    d_comp = 700 / (dist + 10)
-    tcomp = 6.5 * np.exp(0.06 * (-1 * time + 28))
+stat_font = pygame.font.SysFont('Consolas', 15, bold=False)
+ENEMY_NEURO_LBL = [stat_font.render("Right", True, (0, 0, 0)), stat_font.render("Left", True, (0, 0, 0)),
+           stat_font.render("Down", True, (0, 0, 0)), stat_font.render("Up", True, (0, 0, 0))]
+GRAPH_LEGEND_LBLS = [stat_font.render("Slingshot Fitness", True, (0, 0, 0)), stat_font.render("Enemy Fitness", True, (0, 0, 0)), stat_font.render("Kills", True, (0, 0, 0))]
 
 class Creature:
     def __init__(self, surface):
         self.time = 0.01
         self.threshold = 0.7
-        self.brain = NN.NN([4, 5, 4, 3])
         self.surface = surface
-        self.fitness = 0.01
+        self.fitness = 0
 
-    def copy_creature(self):
-        pass
-
-    def drawNN(self, x=600, y=40):
-        h_offset = 0
-        self.brain.classify([1, 2, 3, 4])
-        v_offset = 0
-        old_v = 0
-
-        for layer in range(0, len(self.brain.activations)):
-
-            # centering each layer at middle of first layer
-            if h_offset > 0:
-                old_v = v_offset
-                v_offset = (40 * len(self.brain.activations[0]) - 40 * len(self.brain.activations[layer])) / 2
-
-            # drawing neurons
-            for act in range(0, len(self.brain.activations[layer])):
-                rgb = self.brain.activations[layer][act] * 255
-                c = (rgb, rgb, rgb)
-
-                pygame.draw.ellipse(self.surface, (0, 0, 0), pygame.Rect(x + h_offset, y + v_offset, 25, 25))
-                pygame.draw.ellipse(self.surface, c, pygame.Rect(x + h_offset + 2, y + v_offset + 2, 21, 21))
-
-                # draw weights connecting each neuron
-                if layer > 0:
-                    npos = 0
-                    for weight in self.brain.weights[layer - 1][act]:
-                        # only draw strong weights
-                        if abs(weight) > 0:
-                            if np.sign(weight) < 0:
-                                c = (255, 0, 0)
-                            else:
-                                c = (0, 255, 0)
-                            start = (
-                            x + h_offset - 48, y + old_v - 40 * len(self.brain.activations[layer - 1]) + npos + 13)
-                            end = (x + h_offset, y + v_offset + 13)
-                            pygame.draw.aaline(self.surface, c, start, end)
-
-                        npos += 40
-                v_offset += 40
-            h_offset += 70
-
-    def mutate(self, mut_rate=0.05):
-        """Mutates weights and biases of creature with a chance of <mut_rate>"""
-
-        # mutating weights
-        for w_mat in range(0, len(self.brain.weights)):
-            for layer in range(0, len(self.brain.weights[w_mat])):
-                for weight in range(0, len(self.brain.weights[w_mat][layer])):
-                    # rolling mutation chance
-                    if np.random.random_sample() < mut_rate:
-                        # rolling mutation type (addition, multiplication, replacement)
-                        mutroll = np.random.random_sample()
-                        if mutroll < 0.33:
-                            self.brain.weights[w_mat][layer][weight] += 30*(np.random.random_sample()*2-1)
-
-                        elif mutroll < 0.66:
-                            self.brain.weights[w_mat][layer][weight] *= 2*(np.random.random_sample()*2-1)
-
-                        else:
-                            self.brain.weights[w_mat][layer][weight] = 1*(np.random.random_sample()*2-1)
-
-        # crossing over biases
-        for bias_layer in range(0, len(self.brain.biases)):
-            for bias in range(0, len(self.brain.biases[bias_layer])):
-
-                # rolling mutation chance
-                if np.random.random_sample() < 0.5:
-                    if np.random.random_sample() < mut_rate:
-                        # rolling mutation type (addition, multiplication, replacement)
-                        mutroll = np.random.random_sample()
-                        if mutroll < 0.3333:
-                            self.brain.biases[bias_layer][bias] += 2 * (np.random.random_sample() * 2 - 1)
-
-                        elif mutroll < 0.6666:
-                            self.brain.biases[bias_layer][bias] *= 2 * (np.random.random_sample() * 2 - 1)
-
-                        else:
-                            self.brain.biases[bias_layer][bias] = 4 * (np.random.random_sample() * 2 - 1)
-
-    def crossover(self, creature):
-        """Swaps genes between 2 species, i.e breeds them.can only crossover with same subclass/'species'. Randomly
-        swap weights and biases for each neuron. Results in 2 'children' between self and the creature.
-        Returns the 2 'children' in a list"""
-
-        # crossing over weights
-        for w_mat in range(0, len(self.brain.weights)):
-            for layer in range(0,len(self.brain.weights[w_mat])):
-                # roll 50% chance to crossover
-                if np.random.random_sample() < 0.3:
-                    a = self.brain.weights[w_mat][layer]
-                    b = creature.brain.weights[w_mat][layer]
-
-                    self.brain.weights[w_mat][layer] = b
-                    creature.brain.weights[w_mat][layer] = a
-
-        # crossing over biases
-        for bias_layer in range(0, len(self.brain.biases)):
-            for bias in range(0, len(self.brain.biases[bias_layer])):
-                if np.random.random_sample() < 0.5:
-                    a = self.brain.biases[bias_layer][bias]
-                    b = creature.brain.biases[bias_layer][bias]
-
-                    self.brain.biases[bias_layer][bias] = b
-                    creature.brain.biases[bias_layer][bias] = a
-
-    def set_fitness(self):
-        pass
+    def draw_fitness(self, font, pos=(0, 0)):
+        """draws fitness at the given position given a pygame font"""
+        fit_lbl = font.render("Fitness: " + str(round(self.fitness, 2)), True, (0, 0, 0))
+        self.surface.blit(fit_lbl, pos)
 
 
 class BowCreature(Creature):
@@ -135,71 +30,63 @@ class BowCreature(Creature):
     O = neuron
 
     ==Input Layer==                                 ==Output Layer==
-    O - bow strength
-    O - theta
+    O - bow strength x
+    O - bow strength y
     O - enemy's x position                           O - mouse x position
     O - enemy's y position   ..................      O - mouse y position
-    O - enemy's dx                                   O - mouse clicked (if activation > 0.7)
+    O - enemy's dx                                   O - mouse clicked (if activation > self.threshold)
     O - enemy's dy
     """
 
     def __init__(self, surface, bow):
         super().__init__(surface)
-        self.brain = NN.NN([6, 4, 4, 3])
         self.game_model = bow
-
-    def copy_creature(self):
-        new_c = BowCreature(self.surface, GameObjects.Bow(self.surface))
-        new_c.time = self.time
-        new_c.brain = self.brain.copy_NN()
-        new_c.fitness = self.fitness
-
-        return new_c
+        self.threshold = 0.9
+        self.killed = False
 
     def set_fitness(self, disp):
-        """f(time(exponential decay), **arrows left(lognormal dist. on time), closest arrow distance to enemy)
-        put in desmos to see:
-
-        arrow component: 200\frac{1}{xb}e^{\left(-\frac{\left(\ln x-u\right)^{2}}{2b^{2}}\right)}
-            - b = 0.5
-            - u = 2.8
-            
-        time component: 6.5\cdot1.03^{\left(-x+a\right)}
-            - c = 0.06
-            - a = 28
+        """ Sets and returns fitness of this BowCreature instance. Fitness is a function of time and average distance
+        between all arrows and the enemy per game tick.
         """
+        if self.game_model.arrows <= 0:
+            return 0
 
-        # calculate fitness on closest arrow distance to enemy
-        dist = np.sqrt(np.square(disp[0]) + np.square(disp[1]))
+        # calculate fitness on average arrow distance to enemy per tick
+        d_comp = np.exp(-1*disp/80 + 5)
+        tcomp = 10 * np.exp(0.02*(-1*self.time + 100))
+        fit = d_comp
 
-        d_comp = 700/(dist + 10)
-        tcomp = 6.5 * np.exp(0.06*(-1*self.time + 28))
+        if self.killed:
+            fit *= 1.4
 
-        self.fitness = d_comp + tcomp
+        else:
+            fit = fit/1.4
+
+        self.fitness = fit
         return self.fitness
 
-    def update_nn(self, x, y, dx, dy):
-        inp_layer = [-self.game_model.draw_dx / 80, -self.game_model.draw_dy / 20]
-        inp_layer.extend([(x - 255) /50, (y - 255) /50, (dx) * 3, (dy) * 3])
-
-        self.brain.classify(inp_layer)
-
-    def move_model(self):
+    def move_model(self, out):
+        """Moves bow creature given an output of a neural network. <out> must be a list of length 3. Returns an arrow
+        object when shot successfully"""
         self.time += 0.05
-        inp = [1*(self.brain.activations[-1][0]*300 + 100), (self.brain.activations[-1][1]*200 + 598)]
+
+        # updating pull position of game model
+        inp = out[:]
+        inp[0] = inp[0]*300 + 100
+        inp[1] = inp[1]*100 + 598
         self.game_model.pull_bow(False, inp)
-        if self.brain.activations[-1][2] > 0.7:
-            # TODO call fire bow correctly from NN
+
+        # shooting check
+        if out[-1] > self.threshold:
+
             mp = self.game_model.drawpos
-            dx = (247-mp[0])/10
-            dy = (573-mp[1])/10
+            dx = (247-mp[0])/20
+            dy = (573-mp[1])/20
             spd = np.sqrt(np.square(dx) + np.square(dy))
 
-            if spd > 10:
+            if spd > 5:
                 arrow = self.game_model.shoot(mp, dx, dy)
                 return arrow
-
-        return None
 
 
 class SquareCreature(Creature):
@@ -221,29 +108,13 @@ class SquareCreature(Creature):
 
     def __init__(self, surface, enemy):
         super().__init__(surface)
-        self.brain = NN.NN([8, 5, 5, 4])
         self.game_model = enemy
+        self.avoided = 0
 
-    def copy_creature(self):
-        new_c = SquareCreature(self.surface, GameObjects.Enemy(self.surface, pos=(250,250)))
-        new_c.time = self.time
-        new_c.brain = self.brain.copy_NN()
-        new_c.fitness = self.fitness
+    def move_model(self, outp):
 
-        return new_c
-
-    def update_nn(self, bowx, bowy):
-        inp_layer = [bowx/20, bowy / 100, (self.game_model.pos[0]-255)/80, (self.game_model.pos[1]-255)/50]
-        for q in self.game_model.quadstat:
-            if q:
-                inp_layer.append(-200)
-            else:
-                inp_layer.append(200)
-        self.brain.classify(inp_layer)
-
-    def move_model(self):
         self.time += 0.05
-        out = self.brain.activations[-1]
+        out = outp
         processed = []
 
         for i in out:
@@ -256,186 +127,308 @@ class SquareCreature(Creature):
 
     def set_fitness(self):
         """f(t), Increases most initially, plateaus later, sets fitness"""
-        self.fitness = 8 * np.sqrt(self.time)
+        self.fitness = (8 * np.sqrt(self.time) + 10*self.avoided)/10
         return self.fitness
-
 
 class EvolutionManager:
 
-    def __init__(self, surface, mutation_rate=0.05, pop_size=15):
-        self.generations = 1
-        self.individual = 0
-        self.pop_size = pop_size
-        self.mut_rate = mutation_rate
+    def __init__(self, surface, b_config, e_config):
+        # UI stuff
+        self.stfont = pygame.font.SysFont('Consolas', 15, bold=False)
+        self.drawing = True
         self.surface = surface
 
-        self.bow_gen = [BowCreature(self.surface, GameObjects.Bow(self.surface)) for i in range(0, self.pop_size)]
+        # neat-python variables
+        self.b_conf = b_config
+        self.e_conf = e_config
+        self.b_pop = neat.Population(b_config)
+        self.e_pop = neat.Population(e_config)
+        self.b_brains = [neat.nn.FeedForwardNetwork.create(self.b_pop.population[i], b_config) for i in self.b_pop.population]
+        self.e_brains = [neat.nn.FeedForwardNetwork.create(self.e_pop.population[i], e_config) for i in self.e_pop.population]
 
-        # (250,250)
-        self.enemy_gen = [SquareCreature(self.surface, GameObjects.Enemy(self.surface, 100, (250,250))) for i in
-                          range(0, self.pop_size)]
-
-        self.managers = [GameObjects.WaveManager([self.enemy_gen[i].game_model], self.bow_gen[i].game_model)for i in range(0, len(self.bow_gen))]
-        self.g_manager = GameObjects.WaveManager([self.enemy_gen[0].game_model], self.bow_gen[0].game_model)
+        # game objects
+        self.bow_gen = [BowCreature(self.surface, GameObjects.Bow(self.surface))
+                        for i in range(0, len(self.b_pop.population))]
+        self.enemy_gen = [SquareCreature(self.surface, GameObjects.Enemy(self.surface, 100)) for i in
+                          range(0, len(self.e_pop.population))]
+        self.managers = [GameObjects.WaveManager([self.enemy_gen[i].game_model], self.bow_gen[i].game_model)
+                         for i in range(0, len(self.bow_gen))]
         self.timers = [0 for i in range(0, len(self.bow_gen))]
 
-        self.timer = 0
-        self.time = 0
+        # statistics
+        self.generations = 1
+        self.avg_b_fitness = []
+        self.avg_e_fitness = []
+        self.kills = []
+        self.e_stdev = None
+        self.b_stdev = None
 
-        # UI stuff
-        self.stfont = pygame.font.SysFont('Consolas', 15)
-        self.drawing = True
-
-    def cycle(self):
-        """Represents a single game cycle for a single bow and enemy"""
-
-        # restart game cycle check
-        if self.timer > 100:
-            self.timer = 0
-            self.time = 0
-            if self.individual != len(self.bow_gen) - 1:
-                self.individual += 1
-
-            # reached last member of population, breed populations
-            else:
-                self.sort_by_fitness()
-                self.select()
-            self.g_manager = GameObjects.WaveManager([self.enemy_gen[self.individual].game_model], self.bow_gen[self.individual].game_model)
-
-        # current enemy and bow
-        i = self.individual
-        e = self.enemy_gen[i].game_model
-        b = self.bow_gen[i].game_model
-
-        self.bow_gen[i].set_fitness(self.managers[i].closest_distance)
-        self.enemy_gen[i].set_fitness()
-
-        # update positions
-        self.g_manager.detectCollisions()
-        self.bow_gen[i].update_nn(e.pos[0], e.pos[1], e.vel[0], e.vel[1])
-        self.enemy_gen[i].update_nn(b.draw_dx, b.draw_dy)
-
-        # draw bows
-        self.g_manager.draw()
-        self.enemy_gen[i].drawNN(600, 20)
-        self.bow_gen[i].drawNN(600, 420)
-        time_rect = pygame.Rect(880, 12, (100-self.timer)*5, 20)
-        pygame.draw.rect(self.surface, (0, 255, 0), time_rect)
-
-        # listening for interaction from NN
-        self.enemy_gen[i].move_model()
-        arrow = self.bow_gen[i].move_model()
-        if arrow is not None:
-            self.g_manager.add_arrow(arrow)
-
-        # drawing time remaining and stats
-        self.drawstats()
-
-        # updating timer when stuck/unstuck
-        if not e.is_moving() or self.g_manager.failed_shots > 40 or b.arrows > 65 or b.time_between_shots > 900:
-            self.timer += 0.2
-        else:
-            self.timer = 0
-
-        self.time += 1
+        self.b_gen_fitness = []
+        self.e_gen_fitness = []
 
     def multicycle(self):
-        """Runs a game cycle on multiple enemies and bows"""
-        # update each generation
+        """Runs and draws a game cycle on multiple enemies and bows.
+        Restarts when all timers reach 100/all enemies die."""
+        view_single = False
+        mp = pygame.mouse.get_pos()
+        mouse_ind = None
+
+        # check if viewing a single bow-enemy pair
+        if int(mp[1]) in range(12, 12 + 10*len(self.bow_gen)) and int(mp[0]) in range(860, 990):
+            mouse_ind = (mp[1]-12) // 10
+            view_single = True
+
+        # game loop
         for i in range(0, len(self.bow_gen)):
-            if not self.timers[i] > 100:
+            if self.timers[i] < 100:
+
+                # updating game objects
                 b = self.bow_gen[i].game_model
                 e = self.enemy_gen[i].game_model
-
-                # update positions
                 self.managers[i].detectCollisions()
-                self.bow_gen[i].update_nn(e.pos[0], e.pos[1], e.vel[0], e.vel[1])
-                self.enemy_gen[i].update_nn(b.draw_dx, b.draw_dy)
+                self.enemy_gen[i].avoided = self.managers[i].missed
 
-                # calculate fitness
-                self.bow_gen[i].set_fitness(self.managers[i].closest_distance)
-                self.enemy_gen[i].set_fitness()
+                # setting input for enemy neural networks
+                e_inp = [b.draw_dx, b.draw_dy, (e.pos[0] - 255), (e.pos[1] - 255)]
+                for q in e.quadstat:
+                    if q:
+                        e_inp.append(100)
+                    else:
+                        e_inp.append(0)
+                self.e_brains[i].activate(e_inp)
 
-                # drawing game objects, timer bars
-                if self.drawing:
-                    self.managers[i].draw()
-                    time_rect = pygame.Rect(860, 12 + 20*i, (100 - self.timers[i]) * 1.3, 15)
-                    pygame.draw.rect(self.surface, (0, 255, 0), time_rect)
+                # setting input for bow neural networks
+                b_inp = [b.draw_dx, b.draw_dy]
+                b_inp.extend([(e.pos[0] - 255), (e.pos[1] - 255), e.vel[0] * 3, e.vel[1] * 3])
+                self.b_brains[i].activate(b_inp)
 
-                else:
-                    print("generation " + (str(self.generations)))
+                # drawing game objects and timer bars
+                time_rect = pygame.Rect(860, 12 + 10 * i, (100 - self.timers[i]) * 1.3, 5)
 
-                # listening for NN interaction
-                self.enemy_gen[i].move_model()
-                arrow = self.bow_gen[i].move_model()
+                # check for high bow fitness, highlight timer bars
+                c = (0, 255, 0)
+                if self.generations > 1 and self.bow_gen[i].set_fitness(self.managers[i].avg_dist) > self.avg_b_fitness[-1] + self.b_stdev*1.2:
+                    c = (255, 0, 0)
+                pygame.draw.rect(self.surface, c, time_rect)
+
+                # listening for NN interaction, and updating game models
+                b_out = [self.b_brains[i].values[ind] for ind in range(0, 3)]
+                e_out = [self.e_brains[i].values[ind] for ind in range(0, 4)]
+                self.enemy_gen[i].move_model(e_out)
+                arrow = self.bow_gen[i].move_model(b_out)
                 if arrow is not None:
                     self.managers[i].add_arrow(arrow)
 
-                # updating timer when stuck/unstuck, ending timer when enemy dies
-                if not e.is_moving() or self.managers[i].failed_shots > 40 or b.arrows > 50 or b.time_between_shots > 900:
+                # check if viewing a single bow-enemy pair, draw respective stats
+                if (not view_single) or (i == mouse_ind):
+                    self.managers[i].draw()
+                    if view_single:
+                        self.enemy_gen[i].set_fitness()
+                        self.enemy_gen[i].draw_fitness(self.stfont, (600, 60))
+
+                        self.bow_gen[i].set_fitness(self.managers[i].avg_dist)
+                        self.bow_gen[i].draw_fitness(self.stfont, (600, 400))
+
+                        self.draw_nn(i, b_out)
+                        self.draw_nn(i, e_out, True)
+
+                # countdown when stuck/unstuck, ending timer when enemy dies
+                if len(self.managers[i].enemies) < 1:
+                    self.timers[i] = 150
+                    self.bow_gen[i].killed = True
+                elif not e.is_moving() or self.managers[i].failed_shots > 15 or b.arrows > 18 or b.time_between_shots > 300:
                     self.timers[i] += 0.2
-                elif len(self.managers[i].enemies) < 1:
-                    self.timers[i] = 200
                 else:
                     self.timers[i] = 0
-
         self.drawstats()
 
         # checking all generations finished, select, breed, and mutate
         for i in self.timers:
             if i < 100:
                 return None
-        self.sort_by_fitness()
-        self.select()
 
-    def drawstats(self):
-        gen_lbl = self.stfont.render("generation " + str(self.generations), False, (0, 0, 0))
-        self.surface.blit(gen_lbl, (1200, 10))
+        self.b_gen_fitness, self.e_gen_fitness = [], []
+        self.b_pop.run(self.bow_ff, 1)
+        self.e_pop.run(self.enemy_ff, 1)
+        self.shuffle_pops()
 
-    def sort_by_fitness(self):
-        self.enemy_gen.sort(key=lambda x: x.fitness, reverse=True)
-        self.bow_gen.sort(key=lambda x: x.fitness, reverse=True)
+        # update kill count for generation
+        k = 0
+        for m in self.managers:
+            if len(m.enemies) < 1:
+                k += 1
+        self.kills.append(k)
 
-    def select(self):
-        """Selects and breeds the fittest creatures of the generation. Assume bowcreatures and squarecreatures are
-        sorted by fitness in descending order."""
-        # keep best performing individual of each generation
-        new_bow_gen = [self.bow_gen[0].copy_creature()]
-        new_e_gen = [self.enemy_gen[0].copy_creature()]
-
-        # shuffle and breed top 50% of population
-        bow_breed = self.bow_gen[0:1*len(self.bow_gen)//2]
-        e_breed = self.enemy_gen[0:1*len(self.enemy_gen)//2]
-
-
-        # breeding individuals with highest fitness, copy into a new generation
-        i = 0
-        while i < len(bow_breed)-2:
-            bow_breed[i].crossover(bow_breed[i+1])
-            e_breed[i].crossover(e_breed[i+1])
-
-            new_bow_gen.extend([bow_breed[i].copy_creature(), bow_breed[i + 1].copy_creature()])
-            new_e_gen.extend([e_breed[i].copy_creature(), e_breed[i+1].copy_creature()])
-            i += 2
-        # populating remainder of new generation with randomly generated creatures
-        while len(new_e_gen) < self.pop_size:
-            new_e_gen.append(SquareCreature(self.surface, GameObjects.Enemy(self.surface, 100, (250,250))))
-            new_bow_gen.append(BowCreature(self.surface, GameObjects.Bow(self.surface)))
-
-        # mutate everyone
-        for i in range(0, len(new_e_gen)):
-            new_e_gen[i].mutate(self.mut_rate)
-            new_bow_gen[i].mutate(self.mut_rate)
-
-        # assign new generations to evolution manager, update game managers
-        self.enemy_gen = new_e_gen
-        self.bow_gen = new_bow_gen
-        self.managers = [GameObjects.WaveManager([self.enemy_gen[i].game_model], self.bow_gen[i].game_model) for i in
-                         range(0, len(self.bow_gen))]
-
-        # reset timers of all creatures after breeding
-        self.timers = [0 for i in range(0, self.pop_size)]
+        # reset timers and game models, brains
+        self.bow_gen = [BowCreature(self.surface, GameObjects.Bow(self.surface))
+                        for i in range(0, len(self.b_pop.population))]
+        self.enemy_gen = [SquareCreature(self.surface, GameObjects.Enemy(self.surface, 100)) for i in
+                          range(0, len(self.e_pop.population))]
+        self.managers = [GameObjects.WaveManager([self.enemy_gen[i].game_model], self.bow_gen[i].game_model)
+                         for i in range(0, len(self.bow_gen))]
+        self.timers = [0 for i in range(0, len(self.bow_gen))]
+        self.b_brains = [neat.nn.FeedForwardNetwork.create(self.b_pop.population[i], self.b_conf) for i in self.b_pop.population]
+        self.e_brains = [neat.nn.FeedForwardNetwork.create(self.e_pop.population[i], self.e_conf) for i in self.e_pop.population]
         self.generations += 1
 
+    def bow_ff(self, genomes, config):
+        """bow fitness function for neat-python. Updates NEAT's genome fitnesses"""
 
+        tot_fit = 0
+        i = 0
+        for b_id, genome in genomes:
+            ft = self.bow_gen[i].set_fitness(self.managers[i].avg_dist)
+            tot_fit += ft
+            self.b_gen_fitness.append(ft)
+            genome.fitness = ft
+            i += 1
+
+        avg_fit = tot_fit / len(self.b_pop.population)
+        self.avg_b_fitness.append(avg_fit)
+        self.b_stdev = np.std(self.b_gen_fitness)
+
+    def enemy_ff(self, genomes, config):
+        """Enemy fitness function for neat-python. Updates NEAT's genome fitnesses"""
+
+        tot_fit = 0
+        i = 0
+        for e_id, genome in genomes:
+            ft = self.enemy_gen[i].set_fitness()
+            tot_fit += ft
+            self.e_gen_fitness.append(ft)
+            genome.fitness = ft
+            i += 1
+
+        avg_fit = tot_fit / len(self.e_pop.population)
+        self.avg_e_fitness.append(avg_fit)
+        self.e_stdev = np.std(self.e_gen_fitness)
+
+    def drawstats(self):
+        """Draws stats contained in this EvolutionManager instance onto surface"""
+
+        # drawing best and avg fitness of last generation as text
+        b_avg_str = "Average bow fitness: "
+        e_avg_str = "Average enemy fitness: "
+
+        bbest_str = "Best bow fitness: "
+        ebest_str = "Best enemy fitness: "
+
+        b_std_str = "bow stdev: "
+        e_std_str = "enemy stdev: "
+
+        if self.generations > 1:
+            b_avg_str += str(round(self.avg_b_fitness[-1], 2))
+            e_avg_str += str(round(self.avg_e_fitness[-1], 2))
+
+            bbest_str += str(round(self.b_pop.best_genome.fitness, 2))
+            ebest_str += str(round(self.e_pop.best_genome.fitness, 2))
+
+            b_std_str += str(round(self.b_stdev, 2))
+            e_std_str += str(round(self.e_stdev, 2))
+
+        gen_lbl = self.stfont.render("Generation " + str(self.generations - 1), True, (0, 0, 0))
+        b_avg_lbl = self.stfont.render(b_avg_str, True, (0, 0, 0))
+        e_avg_lbl = self.stfont.render(e_avg_str, True, (0, 0, 0))
+
+        bbest_fit_lbl = self.stfont.render(bbest_str, True, (0, 0, 0))
+        ebest_fit_lbl = self.stfont.render(ebest_str, True, (0, 0, 0))
+
+        b_std_lbl = self.stfont.render(b_std_str, True, (0, 0, 0))
+        e_std_lbl = self.stfont.render(e_std_str, True, (0, 0, 0))
+
+        self.surface.blit(gen_lbl, (1020, 10))
+        self.surface.blit(b_avg_lbl, (1020, 25))
+        self.surface.blit(e_avg_lbl, (1020, 40))
+        self.surface.blit(bbest_fit_lbl, (1020, 55))
+        self.surface.blit(ebest_fit_lbl, (1020, 70))
+        self.surface.blit(b_std_lbl, (1240, 55))
+        self.surface.blit(e_std_lbl, (1240, 70))
+
+        # graphing fitnesses
+        self.graph_fitnesses()
+
+    def graph_fitnesses(self):
+        """plots enemy and bow fitness on a graph"""
+
+        # drawing graph borders and box
+        pygame.draw.aaline(self.surface, (0, 0, 0), (1000, 100), (1400, 100))
+        pygame.draw.aaline(self.surface, (0, 0, 0), (1000, 400), (1400, 400))
+        graph_rect = pygame.Rect(1020, 120, 360, 260)
+        pygame.draw.rect(self.surface, (0, 0, 0), graph_rect, 1)
+
+        # drawing legend
+        pygame.draw.aaline(self.surface, (255, 0, 0), (1050, 450), (1100, 450))
+        pygame.draw.aaline(self.surface, (0, 255, 0), (1050, 600), (1100, 600))
+        pygame.draw.aaline(self.surface, (10, 39, 255), (1050, 525), (1100, 525))
+
+        self.surface.blit(GRAPH_LEGEND_LBLS[0], (1110, 440))
+        self.surface.blit(GRAPH_LEGEND_LBLS[1], (1110, 590))
+        self.surface.blit(GRAPH_LEGEND_LBLS[2], (1110, 515))
+
+        # graphing all avg values
+        if len(self.avg_b_fitness) > 0:
+            # set up horizontal offset and scaling factor
+            h_off = 360 / (len(self.avg_b_fitness) + 1)
+            scale = 0.85*260/max(self.avg_b_fitness + self.avg_e_fitness)
+
+            start_b = (1020, 380)
+            start_e = (1020, 380)
+            start_k = (1020, 380)
+            for i in range(0, len(self.avg_b_fitness)):
+                end_b = (1020 + h_off*(i+1), 120 + 260 - self.avg_b_fitness[i]*scale)
+                end_e = (1020 + h_off * (i + 1), 120 + 260 - self.avg_e_fitness[i]*scale)
+                end_k = (1020 + h_off * (i + 1), 120 + 260 - self.kills[i]*scale)
+
+                # bow line (red), enemy line (green)
+                pygame.draw.aaline(self.surface, (255, 0, 0), start_b, end_b)
+                pygame.draw.aaline(self.surface, (0, 255, 0), start_e, end_e)
+                pygame.draw.aaline(self.surface, (10, 39, 255), start_k, end_k)
+
+                # update start points
+                start_b = end_b
+                start_e = end_e
+                start_k = end_k
+
+    def draw_nn(self, i, out, enemy=False):
+        """draws selected neural network given an index i in range of [0, length of self.e_brains - 1]. Draws NN at the
+        x and y position given, represents coordinates of top left corner."""
+
+        # drawing enemy NN
+        if enemy:
+            pos = (600, 80)
+            r_list = [pygame.Rect(pos[0] + 60, pos[1]+ 50 + 20*i, 15, 15) for i in range(0, len(out))]
+
+            for i in range(0, len(out)):
+                act_rgb = (1-out[i])*255
+                c = (act_rgb, act_rgb, act_rgb)
+                pygame.draw.ellipse(self.surface, c, r_list[i])
+                pygame.draw.ellipse(self.surface, (0, 0, 0), r_list[i], 1)
+                self.surface.blit(ENEMY_NEURO_LBL[i], (pos[0] + 76, pos[1] + 50 + 20*i))
+
+        # drawing bow NN
+        else:
+            pos = (600, 420)
+            x, y = out[0] * 300 + 100, out[1] * 100 + 598
+            pygame.draw.aaline(self.surface, (0, 0, 255), (x-10, y-10), (x + 10, y + 10))
+            pygame.draw.aaline(self.surface, (0, 0, 255), (x + 10, y - 10), (x - 10, y + 10))
+
+            act_c = (1-out[2])*255
+            c = (act_c, act_c, act_c)
+            outp = pygame.Rect(pos[0] + 60, pos[1]+ 50, 15, 15)
+            pygame.draw.ellipse(self.surface, c, outp)
+            pygame.draw.ellipse(self.surface, (0, 0, 0), outp, 1)
+
+            fire_lbl = self.stfont.render("Fire", True, (0,0,0))
+            self.surface.blit(fire_lbl, (pos[0] + 76, pos[1] + 50))
+
+    def shuffle_pops(self):
+        """ shuffles population dictionary of enemy population """
+        values = [self.b_pop.population[i] for i in self.b_pop.population]
+        old = values[:]
+        random.shuffle(values)
+
+        i = 0
+        for key in self.b_pop.population:
+            self.b_pop.population[key] = values[i]
+            i += 1
 
