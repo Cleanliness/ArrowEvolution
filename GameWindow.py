@@ -50,7 +50,7 @@ while True:
     e_manager.multicycle()
 
     screen.blit(enemy_label, (670, 20))
-    screen.blit(bow_label, (670, 390))
+    screen.blit(bow_label, (660, 360))
     screen.blit(bow_img, (190, 550))
     pygame.display.flip()
     pygame.display.update()

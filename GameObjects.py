@@ -41,7 +41,7 @@ class Enemy:
         self.quadborder = self.quads[:]
         self.quadstat = [False for i in range(0, 4)]
         self.surface = surface
-        self.accel = 0.03
+        self.accel = 0.02
 
     def copy_enemy(self):
         new_e = Enemy(self.surface, self.hp, self.pos[:])
@@ -289,7 +289,7 @@ class WaveManager:
         self.bow = bow
         self.failed_shots = 0
         self.ticks = 1
-        self.tot_dist = -1
+        self.tot_dist = 0
         self.avg_dist = -1
         self.missed = 0
 
@@ -305,6 +305,7 @@ class WaveManager:
         # checking for collisions
         dist_sum = 0
         for arr in self.arrows:
+            self.ticks += 1
             for e in self.enemies:
                 # remove arrow if found in range of enemy, i.e enemy killed
                 if int(arr.pos[0]) in range(int(e.pos[0] - 15), int(e.pos[0] + 15)) and int(arr.pos[1]) in range(int(e.pos[1] - 15), int(e.pos[1] + 15)):
@@ -324,19 +325,18 @@ class WaveManager:
         # updating enemy and arrow states
         for e in self.enemies:
             e.check_quads([a.pos for a in self.arrows])
+
+        self.tot_dist += dist_sum / (len(self.arrows) + 1)
+        self.avg_dist = self.tot_dist / self.ticks
         [a.move() for a in self.arrows]
 
-        # update ticks and average distance
-        if len(self.arrows) > 0:
-            self.tot_dist += dist_sum / len(self.arrows)
-            self.avg_dist = self.tot_dist / self.ticks
-            self.ticks += 1
+
+
 
     def draw(self):
         self.bow.draw()
         [e.draw() for e in self.enemies]
         [a.draw() for a in self.arrows]
-
 
     def add_enemy(self, enemy):
         """adds an enemy to the enemies list"""
