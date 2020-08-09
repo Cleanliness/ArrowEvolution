@@ -15,8 +15,8 @@ Slingshot inputs are its own draw strength, enemy position, enemy's dy and dx, o
 Enemy fitness is a function of time and number of arrows dodged, slingshot fitness is a function of average distance of projectiles from enemy, and if the enemy was hit.
 Enemies and slingshots are selected by highest fitness. NEAT crosses over selected individuals and can mutate the structure of their NNs to get more complex behaviour.
 
-# Screenshots and Videos
+# Screenshots
 ![No Input](https://i.postimg.cc/267rnMy5/midgame.png)
 
-Youtube:
+# Videos
 [![Youtube](https://img.youtube.com/vi/sRS6lCvJe9U/0.jpg)](https://www.youtube.com/watch?v=sRS6lCvJe9U)
