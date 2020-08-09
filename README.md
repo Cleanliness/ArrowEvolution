@@ -17,4 +17,6 @@ Enemies and slingshots are selected by highest fitness. NEAT crosses over select
 
 # Screenshots and Videos
 ![No Input](https://i.postimg.cc/267rnMy5/midgame.png)
+
+Youtube:
 [![Youtube](https://img.youtube.com/vi/sRS6lCvJe9U/0.jpg)](https://www.youtube.com/watch?v=sRS6lCvJe9U)
